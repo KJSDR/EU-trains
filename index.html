@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>European Train Stations Dot Density Map</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a2e;
+            overflow: hidden;
+        }
+        
+        .map-container {
+            width: 100vw;
+            height: 100vh;
+            background-color: #1a1a2e;
+        }
+        
+        .countries {
+            fill: #16213e;
+            stroke: #0f1624;
+            stroke-width: 0.8px;
+        }
+        
+        .countries:hover {
+            fill: #1a2746;
+        }
+        
+        /* Dot density styles - sizes are set in JavaScript */
+        .station-dot {
+            opacity: 0.8;
+            stroke: none;
+        }
+        
+        .station-dot.main {
+            fill: #ff6b35;
+        }
+        
+        .station-dot.airport {
+            fill: #f7931e;
+        }
+        
+        .station-dot.city {
+            fill: #4ecdc4;
+        }
+        
+        .station-dot.regular {
+            fill: #45b7d1;
+        }
+        
+        /* Glow effect for better visibility */
+        .glow {
+            filter: drop-shadow(0 0 2px currentColor);
+        }
+        
+        .tooltip {
+            position: absolute;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+            border: 1px solid #555;
+        }
+        
+        .legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            border: 1px solid #555;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            color: #4ecdc4;
+            font-size: 14px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+        }
+        
+        .legend-dot {
+            border-radius: 50%;
+            margin-right: 10px;
+            filter: drop-shadow(0 0 1px currentColor);
+        }
+        
+        .performance-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #555;
+        }
+        
+        .zoom-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid #555;
+            color: #4ecdc4;
+        }
+    </style>
+</head>
+<body>
+    <div class="map-container">
+        <svg id="map"></svg>
+        <div class="tooltip"></div>
+        
+        <div class="zoom-info">
+            Use mouse wheel to zoom • Drag to pan
+        </div>
+        
+        <div class="performance-info">
+            <div>Stations: <span id="stationCount">Loading...</span></div>
+            <div>Rendered: <span id="renderedCount">0</span></div>
+        </div>
+        
+        <div class="legend">
+            <h4>Train Stations</h4>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #ff6b35; width: 14px; height: 14px;"></div>
+                <span>Main Stations</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #f7931e; width: 12px; height: 12px;"></div>
+                <span>Airport Stations</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #4ecdc4; width: 11px; height: 11px;"></div>
+                <span>City Stations</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #45b7d1; width: 8px; height: 8px;"></div>
+                <span>Regular Stations</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Performance settings
+        const MAX_STATIONS_RENDER = 10000; // Maximum stations to render at once
+        let currentZoomLevel = 1;
+        
+        // Set up dimensions
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        
+        // Create SVG
+        const svg = d3.select("#map")
+            .attr("width", width)
+            .attr("height", height);
+        
+        // Create main group for zooming
+        const g = svg.append("g");
+        
+        // Set up projection optimized for Europe
+        const projection = d3.geoMercator()
+            .center([10, 52])
+            .scale(650)
+            .translate([width / 2, height / 2]);
+        
+        const path = d3.geoPath().projection(projection);
+        
+        // Create tooltip
+        const tooltip = d3.select(".tooltip");
+        
+        // Set up zoom
+        const zoom = d3.zoom()
+            .scaleExtent([0.5, 12])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+                currentZoomLevel = event.transform.k;
+                
+                // Dynamically adjust station rendering based on zoom
+                updateStationVisibilityByZoom(currentZoomLevel);
+            });
+        
+        svg.call(zoom);
+        
+        // Data storage
+        let europeanCountries, trainStations;
+        
+        // Load and process data
+        Promise.all([
+            d3.json("europe.geojson"),
+            d3.csv("train_stations_europe.csv", d => ({
+                id: +d.id,
+                name: d.name.trim(),
+                latitude: +d.latitude,
+                longitude: +d.longitude,
+                country: d.country.trim(),
+                is_city: d.is_city === "true",
+                is_main_station: d.is_main_station === "true",
+                is_airport: d.is_airport === "true",
+                // Calculate importance for prioritization
+                importance: (d.is_main_station === "true" ? 4 : 0) + 
+                           (d.is_airport === "true" ? 3 : 0) + 
+                           (d.is_city === "true" ? 2 : 0) + 1
+            }))
+        ]).then(([geoData, csvData]) => {
+            europeanCountries = geoData;
+            
+            // Filter and sort stations by importance
+            trainStations = csvData
+                .filter(d => 
+                    !isNaN(d.latitude) && !isNaN(d.longitude) && 
+                    d.latitude >= 35 && d.latitude <= 72 && 
+                    d.longitude >= -25 && d.longitude <= 45
+                )
+                .sort((a, b) => b.importance - a.importance); // Most important first
+            
+            console.log(`Loaded ${trainStations.length} valid train stations`);
+            
+            initializeVisualization();
+        }).catch(error => {
+            console.error("Error loading data:", error);
+            alert("Error loading data. Please check file paths and names.");
+        });
+        
+        function initializeVisualization() {
+            // Draw countries
+            g.append("g")
+                .attr("class", "countries-group")
+                .selectAll("path")
+                .data(europeanCountries.features)
+                .enter()
+                .append("path")
+                .attr("d", path)
+                .attr("class", "countries");
+            
+            // Render stations with performance limit
+            const stationsToRender = trainStations.slice(0, MAX_STATIONS_RENDER);
+            drawStations(stationsToRender);
+            updateStationCount();
+        }
+        
+        function drawStations(stationsData) {
+            const stationsGroup = g.append("g").attr("class", "stations-group");
+            
+            const stations = stationsGroup
+                .selectAll("circle")
+                .data(stationsData)
+                .enter()
+                .append("circle")
+                .attr("class", d => {
+                    let classes = "station-dot glow";
+                    if (d.is_main_station) classes += " main";
+                    else if (d.is_airport) classes += " airport";
+                    else if (d.is_city) classes += " city";
+                    else classes += " regular";
+                    return classes;
+                })
+                .attr("cx", d => projection([d.longitude, d.latitude])[0])
+                .attr("cy", d => projection([d.longitude, d.latitude])[1])
+                .attr("r", d => {
+                    if (d.is_main_station) return 2.5;
+                    if (d.is_airport) return 2;
+                    if (d.is_city) return 1.8;
+                    return 1;
+                })
+                .style("opacity", 0)
+                .on("mouseover", function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(100)
+                        .attr("r", function() {
+                            const currentR = +d3.select(this).attr("r");
+                            return currentR * 1.8;
+                        })
+                        .style("opacity", 1);
+                    
+                    tooltip
+                        .style("opacity", 1)
+                        .html(`
+                            <strong>${d.name}</strong><br>
+                            <span style="color: #4ecdc4;">${d.country}</span><br>
+                            ${d.is_main_station ? '<span style="color: #ff6b35;">🚉 Main Station</span>' : ""}
+                            ${d.is_airport ? '<span style="color: #f7931e;">✈️ Airport</span>' : ""}
+                            ${d.is_city ? '<span style="color: #4ecdc4;">🏙️ City</span>' : ""}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr("r", d => {
+                            if (d.is_main_station) return 2.5;
+                            if (d.is_airport) return 2;
+                            if (d.is_city) return 1.8;
+                            return 1;
+                        })
+                        .style("opacity", 0.8);
+                    
+                    tooltip.style("opacity", 0);
+                });
+            
+            // Animate stations appearing
+            stations
+                .transition()
+                .duration(1000)
+                .delay((d, i) => i * 0.5) // Stagger the animation
+                .style("opacity", 0.8);
+            
+            // Update rendered count
+            d3.select("#renderedCount").text(stationsData.length.toLocaleString());
+        }
+        
+        function updateStationVisibilityByZoom(zoomLevel) {
+            const stations = g.selectAll(".station-dot");
+            
+            if (zoomLevel < 1) {
+                // Very zoomed out - show only main and airport stations
+                stations.filter(d => !d.is_main_station && !d.is_airport)
+                    .transition()
+                    .duration(300)
+                    .style("opacity", 0);
+                stations.filter(d => d.is_main_station || d.is_airport)
+                    .transition()
+                    .duration(300)
+                    .style("opacity", 0.8);
+            } else if (zoomLevel < 2) {
+                // Moderately zoomed out - hide only regular stations
+                stations.filter(d => !d.is_main_station && !d.is_airport && !d.is_city)
+                    .transition()
+                    .duration(300)
+                    .style("opacity", 0);
+                stations.filter(d => d.is_main_station || d.is_airport || d.is_city)
+                    .transition()
+                    .duration(300)
+                    .style("opacity", 0.8);
+            } else {
+                // Zoomed in - show all stations
+                stations
+                    .transition()
+                    .duration(300)
+                    .style("opacity", 0.8);
+            }
+        }
+        
+        function updateStationCount() {
+            const rendered = Math.min(trainStations.length, MAX_STATIONS_RENDER);
+            d3.select("#stationCount").text(trainStations.length.toLocaleString());
+            d3.select("#renderedCount").text(rendered.toLocaleString());
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const newWidth = window.innerWidth;
+            const newHeight = window.innerHeight;
+            
+            svg.attr("width", newWidth).attr("height", newHeight);
+            projection.translate([newWidth / 2, newHeight / 2]);
+            
+            // Redraw
+            g.selectAll("path").attr("d", path);
+            g.selectAll("circle")
+                .attr("cx", d => projection([d.longitude, d.latitude])[0])
+                .attr("cy", d => projection([d.longitude, d.latitude])[1]);
+        });
+    </script>
+</body>
+</html>
