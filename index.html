@@ -341,28 +341,50 @@
             const minCount = d3.min(counts);
             
             console.log(`Station count range: ${minCount} - ${maxCount}`);
+            console.log('All counts:', counts.sort((a,b) => b-a));
             
-            // Create color scale - light blue to dark blue
+            // Use logarithmic scale for better distribution
+            // Add 1 to avoid log(0) issues
             colorScale = d3.scaleSequential()
-                .domain([0, maxCount])
+                .domain([Math.log(minCount + 1), Math.log(maxCount + 1)])
                 .interpolator(d3.interpolateBlues);
             
-            // Update legend with actual gradient
+            // Create a custom transform function
+            window.getColorForCount = (count) => {
+                return colorScale(Math.log(count + 1));
+            };
+            
+            // Update legend with better labels
             updateLegendGradient(minCount, maxCount);
         }
         
         function updateLegendGradient(min, max) {
-            // Create CSS gradient string
+            // Create meaningful breakpoints for legend
+            const breakpoints = [min, 50, 100, 500, 1000, max];
             const stops = [];
-            for (let i = 0; i <= 10; i++) {
-                const value = min + (max - min) * (i / 10);
-                const color = colorScale(value);
-                stops.push(`${color} ${i * 10}%`);
-            }
+            
+            breakpoints.forEach((value, i) => {
+                const logValue = Math.log(value + 1);
+                const color = colorScale(logValue);
+                const percent = (i / (breakpoints.length - 1)) * 100;
+                stops.push(`${color} ${percent}%`);
+            });
             
             // Apply gradient to legend
             d3.select(".legend-gradient")
                 .style("background", `linear-gradient(to right, ${stops.join(', ')})`);
+            
+            // Update legend labels to show actual ranges
+            d3.select(".legend").select(".legend-scale").selectAll(".legend-label").remove();
+            d3.select(".legend").select(".legend-scale")
+                .append("span").attr("class", "legend-label").text(`${min}`)
+                .style("position", "absolute").style("left", "0px");
+            d3.select(".legend").select(".legend-scale")
+                .append("span").attr("class", "legend-label").text(`${max}`)
+                .style("position", "absolute").style("right", "0px");
+            d3.select(".legend").select(".legend-scale")
+                .append("span").attr("class", "legend-label").text("500")
+                .style("position", "absolute").style("left", "50%").style("transform", "translateX(-50%)");
         }
         
         function initializeVisualization() {
@@ -385,12 +407,10 @@
                     const geoCountryName = getCountryName(d);
                     const countryCode = getCountryCode(geoCountryName);
                     
-                    // Debug each country
-                    console.log(`GeoJSON: "${geoCountryName}" -> Code: "${countryCode}" -> Has data: ${countryCode ? countryStats.has(countryCode) : false}`);
-                    
                     if (countryCode && countryStats.has(countryCode)) {
                         const stats = countryStats.get(countryCode);
-                        return colorScale(stats.total);
+                        // Use logarithmic color scaling
+                        return colorScale(Math.log(stats.total + 1));
                     }
                     return "#f0f0f0"; // Light gray for no data
                 })
