@@ -3,126 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>European Train Stations Dot Density Map</title>
+    <title>European Train Station Density - Choropleth Map</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #1a1a2e;
+            font-family: 'Arial', sans-serif;
+            background-color: white;
             overflow: hidden;
         }
         
         .map-container {
             width: 100vw;
             height: 100vh;
-            background-color: #1a1a2e;
+            background-color: white;
         }
         
-        .countries {
-            fill: #16213e;
-            stroke: #0f1624;
+        .country {
+            stroke: #333333;
             stroke-width: 0.8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
         
-        .countries:hover {
-            fill: #1a2746;
-        }
-        
-        /* Dot density styles - sizes are set in JavaScript */
-        .station-dot {
-            opacity: 0.8;
-            stroke: none;
-        }
-        
-        .station-dot.main {
-            fill: #ff6b35;
-        }
-        
-        .station-dot.airport {
-            fill: #f7931e;
-        }
-        
-        .station-dot.city {
-            fill: #4ecdc4;
-        }
-        
-        .station-dot.regular {
-            fill: #45b7d1;
-        }
-        
-        /* Glow effect for better visibility */
-        .glow {
-            filter: drop-shadow(0 0 2px currentColor);
+        .country:hover {
+            stroke: #2196F3;
+            stroke-width: 2px;
+            filter: brightness(0.9);
         }
         
         .tooltip {
             position: absolute;
-            padding: 8px;
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            border-radius: 4px;
-            font-size: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.98);
+            color: #333;
+            border-radius: 8px;
+            font-size: 13px;
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.3s;
             z-index: 1000;
-            border: 1px solid #555;
+            border: 2px solid #2196F3;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            min-width: 200px;
+        }
+        
+        .tooltip h3 {
+            margin: 0 0 8px 0;
+            color: #2196F3;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .tooltip-stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            padding: 2px 0;
+        }
+        
+        .tooltip-label {
+            color: #666;
+        }
+        
+        .tooltip-value {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .tooltip-total {
+            border-top: 1px solid #555;
+            margin-top: 8px;
+            padding-top: 8px;
+            font-size: 14px;
+            font-weight: bold;
         }
         
         .legend {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 6px;
-            font-size: 13px;
-            border: 1px solid #555;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #2196F3;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         
         .legend h4 {
-            margin: 0 0 10px 0;
-            color: #4ecdc4;
+            margin: 0 0 12px 0;
+            color: #2196F3;
+            font-size: 16px;
+            text-align: center;
+        }
+        
+        .legend-scale {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        
+        .legend-gradient {
+            width: 200px;
+            height: 20px;
+            margin: 0 10px;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+        
+        .legend-label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .title {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            color: #333;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .subtitle {
+            position: absolute;
+            top: 60px;
+            left: 30px;
+            color: #2196F3;
             font-size: 14px;
         }
         
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin: 6px 0;
-        }
-        
-        .legend-dot {
-            border-radius: 50%;
-            margin-right: 10px;
-            filter: drop-shadow(0 0 1px currentColor);
-        }
-        
-        .performance-info {
+        .stats-panel {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 10px;
-            border-radius: 4px;
+            top: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #2196F3;
             font-size: 12px;
-            border: 1px solid #555;
+            min-width: 150px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         
-        .zoom-info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            border: 1px solid #555;
-            color: #4ecdc4;
+        .stats-panel h4 {
+            margin: 0 0 8px 0;
+            color: #2196F3;
+            font-size: 14px;
+        }
+        
+        .no-data {
+            fill: #f0f0f0;
         }
     </style>
 </head>
@@ -131,41 +164,30 @@
         <svg id="map"></svg>
         <div class="tooltip"></div>
         
-        <div class="zoom-info">
-            Use mouse wheel to zoom • Drag to pan
-        </div>
+        <div class="title">European Train Station Density</div>
+        <div class="subtitle">Hover over countries to see station counts</div>
         
-        <div class="performance-info">
-            <div>Stations: <span id="stationCount">Loading...</span></div>
-            <div>Rendered: <span id="renderedCount">0</span></div>
+        <div class="stats-panel">
+            <h4>Dataset Overview</h4>
+            <div>Total Stations: <span id="totalStations">Loading...</span></div>
+            <div>Countries: <span id="totalCountries">Loading...</span></div>
+            <div>Main Stations: <span id="mainStations">Loading...</span></div>
         </div>
         
         <div class="legend">
-            <h4>Train Stations</h4>
-            <div class="legend-item">
-                <div class="legend-dot" style="background: #ff6b35; width: 14px; height: 14px;"></div>
-                <span>Main Stations</span>
+            <h4>Station Density</h4>
+            <div class="legend-scale">
+                <span class="legend-label">Low</span>
+                <div class="legend-gradient"></div>
+                <span class="legend-label">High</span>
             </div>
-            <div class="legend-item">
-                <div class="legend-dot" style="background: #f7931e; width: 12px; height: 12px;"></div>
-                <span>Airport Stations</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-dot" style="background: #4ecdc4; width: 11px; height: 11px;"></div>
-                <span>City Stations</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-dot" style="background: #45b7d1; width: 8px; height: 8px;"></div>
-                <span>Regular Stations</span>
+            <div style="text-align: center; font-size: 11px; color: #999; margin-top: 5px;">
+                Stations per country
             </div>
         </div>
     </div>
 
     <script>
-        // Performance settings
-        const MAX_STATIONS_RENDER = 10000; // Maximum stations to render at once
-        let currentZoomLevel = 1;
-        
         // Set up dimensions
         const width = window.innerWidth;
         const height = window.innerHeight;
@@ -191,59 +213,166 @@
         
         // Set up zoom
         const zoom = d3.zoom()
-            .scaleExtent([0.5, 12])
+            .scaleExtent([0.5, 4])
             .on("zoom", (event) => {
                 g.attr("transform", event.transform);
-                currentZoomLevel = event.transform.k;
-                
-                // Dynamically adjust station rendering based on zoom
-                updateStationVisibilityByZoom(currentZoomLevel);
             });
         
         svg.call(zoom);
         
         // Data storage
-        let europeanCountries, trainStations;
+        let europeanCountries, trainStations, countryStats;
+        let colorScale;
         
         // Load and process data
         Promise.all([
             d3.json("europe.geojson"),
             d3.csv("train_stations_europe.csv", d => ({
-                id: +d.id,
                 name: d.name.trim(),
                 latitude: +d.latitude,
                 longitude: +d.longitude,
                 country: d.country.trim(),
-                is_city: d.is_city === "true",
-                is_main_station: d.is_main_station === "true",
-                is_airport: d.is_airport === "true",
-                // Calculate importance for prioritization
-                importance: (d.is_main_station === "true" ? 4 : 0) + 
-                           (d.is_airport === "true" ? 3 : 0) + 
-                           (d.is_city === "true" ? 2 : 0) + 1
+                is_city: d.is_city === "TRUE",
+                is_main_station: d.is_main_station === "TRUE",
+                is_airport: d.is_airport === "TRUE"
             }))
         ]).then(([geoData, csvData]) => {
             europeanCountries = geoData;
             
-            // Filter and sort stations by importance
-            trainStations = csvData
-                .filter(d => 
-                    !isNaN(d.latitude) && !isNaN(d.longitude) && 
-                    d.latitude >= 35 && d.latitude <= 72 && 
-                    d.longitude >= -25 && d.longitude <= 45
-                )
-                .sort((a, b) => b.importance - a.importance); // Most important first
+            // Filter and process stations
+            let filteredStations = csvData.filter(d => 
+                !isNaN(d.latitude) && !isNaN(d.longitude) && 
+                d.latitude >= 35 && d.latitude <= 72 && 
+                d.longitude >= -25 && d.longitude <= 45 &&
+                d.latitude !== 0 && d.longitude !== 0 // Remove invalid coordinates
+            );
             
-            console.log(`Loaded ${trainStations.length} valid train stations`);
+            // Apply special filtering only for Switzerland (CH) since it has too much detail
+            trainStations = filteredStations.filter(d => {
+                if (d.country === 'CH') {
+                    // For Switzerland: only keep main stations, city stations, and airport stations
+                    return d.is_main_station || d.is_city || d.is_airport;
+                } else {
+                    // For all other countries: keep all stations as they seem reasonable
+                    return true;
+                }
+            });
             
+            console.log(`Loaded ${csvData.length} total entries`);
+            console.log(`After coordinate filtering: ${filteredStations.length}`);
+            console.log(`After Switzerland-specific filtering: ${trainStations.length} stations`);
+            
+            // Calculate statistics by country
+            calculateCountryStats();
+            setupColorScale();
             initializeVisualization();
+            updateOverallStats();
+            
         }).catch(error => {
             console.error("Error loading data:", error);
             alert("Error loading data. Please check file paths and names.");
         });
         
+        function calculateCountryStats() {
+            // Group stations by country
+            const grouped = d3.group(trainStations, d => d.country);
+            
+            countryStats = new Map();
+            
+            // Debug: Print all unique country names from CSV
+            const csvCountries = Array.from(grouped.keys()).sort();
+            console.log('Countries in CSV (codes):', csvCountries);
+            
+            grouped.forEach((stations, country) => {
+                const stats = {
+                    total: stations.length,
+                    main: stations.filter(d => d.is_main_station).length,
+                    airport: stations.filter(d => d.is_airport).length,
+                    city: stations.filter(d => d.is_city).length,
+                    regular: stations.filter(d => !d.is_main_station && !d.is_airport && !d.is_city).length
+                };
+                
+                // Debug Switzerland specifically
+                if (country === 'CH') {
+                    console.log(`🇨🇭 Switzerland detailed breakdown:`, stats);
+                    console.log('First 20 Swiss stations:', stations.slice(0, 20).map(s => ({
+                        name: s.name, 
+                        lat: s.latitude, 
+                        lon: s.longitude,
+                        main: s.is_main_station,
+                        city: s.is_city,
+                        airport: s.is_airport
+                    })));
+                    
+                    // Check for patterns in names
+                    const namePatterns = {};
+                    stations.forEach(s => {
+                        const baseName = s.name.split(/[,\-\(]/)[0].trim(); // Get base name before comma/dash/parenthesis
+                        namePatterns[baseName] = (namePatterns[baseName] || 0) + 1;
+                    });
+                    
+                    const duplicateNames = Object.entries(namePatterns)
+                        .filter(([name, count]) => count > 1)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10);
+                    
+                    console.log('Top duplicate station names in Switzerland:', duplicateNames);
+                }
+                
+                // Debug countries with suspiciously high counts
+                if (stats.total > 5000) {
+                    console.log(`⚠️ High count for ${country}:`, stats.total, 'stations');
+                }
+                
+                countryStats.set(country, stats);
+            });
+            
+            // Show top 10 countries by station count
+            const sortedCounts = Array.from(countryStats.entries())
+                .sort((a, b) => b[1].total - a[1].total)
+                .slice(0, 10);
+            console.log('Top 10 countries by station count:', sortedCounts.map(([code, stats]) => `${code}: ${stats.total}`));
+        }
+        
+        function setupColorScale() {
+            // Get the range of station counts
+            const counts = Array.from(countryStats.values()).map(d => d.total);
+            const maxCount = d3.max(counts);
+            const minCount = d3.min(counts);
+            
+            console.log(`Station count range: ${minCount} - ${maxCount}`);
+            
+            // Create color scale - light blue to dark blue
+            colorScale = d3.scaleSequential()
+                .domain([0, maxCount])
+                .interpolator(d3.interpolateBlues);
+            
+            // Update legend with actual gradient
+            updateLegendGradient(minCount, maxCount);
+        }
+        
+        function updateLegendGradient(min, max) {
+            // Create CSS gradient string
+            const stops = [];
+            for (let i = 0; i <= 10; i++) {
+                const value = min + (max - min) * (i / 10);
+                const color = colorScale(value);
+                stops.push(`${color} ${i * 10}%`);
+            }
+            
+            // Apply gradient to legend
+            d3.select(".legend-gradient")
+                .style("background", `linear-gradient(to right, ${stops.join(', ')})`);
+        }
+        
         function initializeVisualization() {
-            // Draw countries
+            // Debug: Log some GeoJSON country names to see the structure
+            console.log('First few GeoJSON countries:', europeanCountries.features.slice(0, 5).map(d => ({
+                name: getCountryName(d),
+                properties: Object.keys(d.properties)
+            })));
+            
+            // Draw countries with choropleth coloring
             g.append("g")
                 .attr("class", "countries-group")
                 .selectAll("path")
@@ -251,123 +380,188 @@
                 .enter()
                 .append("path")
                 .attr("d", path)
-                .attr("class", "countries");
-            
-            // Render stations with performance limit
-            const stationsToRender = trainStations.slice(0, MAX_STATIONS_RENDER);
-            drawStations(stationsToRender);
-            updateStationCount();
-        }
-        
-        function drawStations(stationsData) {
-            const stationsGroup = g.append("g").attr("class", "stations-group");
-            
-            const stations = stationsGroup
-                .selectAll("circle")
-                .data(stationsData)
-                .enter()
-                .append("circle")
-                .attr("class", d => {
-                    let classes = "station-dot glow";
-                    if (d.is_main_station) classes += " main";
-                    else if (d.is_airport) classes += " airport";
-                    else if (d.is_city) classes += " city";
-                    else classes += " regular";
-                    return classes;
+                .attr("class", "country")
+                .style("fill", d => {
+                    const geoCountryName = getCountryName(d);
+                    const countryCode = getCountryCode(geoCountryName);
+                    
+                    // Debug each country
+                    console.log(`GeoJSON: "${geoCountryName}" -> Code: "${countryCode}" -> Has data: ${countryCode ? countryStats.has(countryCode) : false}`);
+                    
+                    if (countryCode && countryStats.has(countryCode)) {
+                        const stats = countryStats.get(countryCode);
+                        return colorScale(stats.total);
+                    }
+                    return "#f0f0f0"; // Light gray for no data
                 })
-                .attr("cx", d => projection([d.longitude, d.latitude])[0])
-                .attr("cy", d => projection([d.longitude, d.latitude])[1])
-                .attr("r", d => {
-                    if (d.is_main_station) return 2.5;
-                    if (d.is_airport) return 2;
-                    if (d.is_city) return 1.8;
-                    return 1;
-                })
-                .style("opacity", 0)
                 .on("mouseover", function(event, d) {
-                    d3.select(this)
-                        .transition()
-                        .duration(100)
-                        .attr("r", function() {
-                            const currentR = +d3.select(this).attr("r");
-                            return currentR * 1.8;
-                        })
-                        .style("opacity", 1);
+                    const geoCountryName = getCountryName(d);
+                    const countryCode = getCountryCode(geoCountryName);
+                    let stats = null;
                     
-                    tooltip
-                        .style("opacity", 1)
-                        .html(`
-                            <strong>${d.name}</strong><br>
-                            <span style="color: #4ecdc4;">${d.country}</span><br>
-                            ${d.is_main_station ? '<span style="color: #ff6b35;">🚉 Main Station</span>' : ""}
-                            ${d.is_airport ? '<span style="color: #f7931e;">✈️ Airport</span>' : ""}
-                            ${d.is_city ? '<span style="color: #4ecdc4;">🏙️ City</span>' : ""}
-                        `)
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 10) + "px");
+                    if (countryCode && countryStats.has(countryCode)) {
+                        stats = countryStats.get(countryCode);
+                    }
+                    
+                    if (stats) {
+                        tooltip
+                            .style("opacity", 1)
+                            .html(createTooltipContent(geoCountryName, stats))
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    } else {
+                        tooltip
+                            .style("opacity", 1)
+                            .html(`<h3>${geoCountryName}</h3><div>No station data available${countryCode ? ` (looked for code: ${countryCode})` : ''}</div>`)
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    }
                 })
-                .on("mouseout", function(event, d) {
-                    d3.select(this)
-                        .transition()
-                        .duration(200)
-                        .attr("r", d => {
-                            if (d.is_main_station) return 2.5;
-                            if (d.is_airport) return 2;
-                            if (d.is_city) return 1.8;
-                            return 1;
-                        })
-                        .style("opacity", 0.8);
-                    
+                .on("mouseout", () => {
                     tooltip.style("opacity", 0);
+                })
+                .on("mousemove", function(event) {
+                    tooltip
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 10) + "px");
                 });
-            
-            // Animate stations appearing
-            stations
-                .transition()
-                .duration(1000)
-                .delay((d, i) => i * 0.5) // Stagger the animation
-                .style("opacity", 0.8);
-            
-            // Update rendered count
-            d3.select("#renderedCount").text(stationsData.length.toLocaleString());
         }
         
-        function updateStationVisibilityByZoom(zoomLevel) {
-            const stations = g.selectAll(".station-dot");
+        function getCountryName(d) {
+            // Try different property names and also log them for debugging
+            const possibleNames = [
+                d.properties.NAME, 
+                d.properties.name, 
+                d.properties.NAME_EN, 
+                d.properties.ADMIN,
+                d.properties.NAME_LONG,
+                d.properties.COUNTRY,
+                d.properties.Country,
+                d.properties.ISO_A2
+            ].filter(name => name);
             
-            if (zoomLevel < 1) {
-                // Very zoomed out - show only main and airport stations
-                stations.filter(d => !d.is_main_station && !d.is_airport)
-                    .transition()
-                    .duration(300)
-                    .style("opacity", 0);
-                stations.filter(d => d.is_main_station || d.is_airport)
-                    .transition()
-                    .duration(300)
-                    .style("opacity", 0.8);
-            } else if (zoomLevel < 2) {
-                // Moderately zoomed out - hide only regular stations
-                stations.filter(d => !d.is_main_station && !d.is_airport && !d.is_city)
-                    .transition()
-                    .duration(300)
-                    .style("opacity", 0);
-                stations.filter(d => d.is_main_station || d.is_airport || d.is_city)
-                    .transition()
-                    .duration(300)
-                    .style("opacity", 0.8);
-            } else {
-                // Zoomed in - show all stations
-                stations
-                    .transition()
-                    .duration(300)
-                    .style("opacity", 0.8);
+            const countryName = possibleNames[0] || "Unknown";
+            
+            return countryName;
+        }
+        
+        // Add country code to name mapping
+        function getCountryCode(geoCountryName) {
+            const countryCodeMap = {
+                "France": "FR",
+                "Germany": "DE", 
+                "Italy": "IT",
+                "Spain": "ES",
+                "United Kingdom": "GB",
+                "Netherlands": "NL",
+                "Belgium": "BE",
+                "Switzerland": "CH",
+                "Austria": "AT",
+                "Poland": "PL",
+                "Czech Republic": "CZ",
+                "Sweden": "SE",
+                "Norway": "NO",
+                "Denmark": "DK",
+                "Finland": "FI",
+                "Portugal": "PT",
+                "Greece": "GR",
+                "Hungary": "HU",
+                "Romania": "RO",
+                "Bulgaria": "BG",
+                "Croatia": "HR",
+                "Slovenia": "SI",
+                "Slovakia": "SK",
+                "Lithuania": "LT",
+                "Latvia": "LV",
+                "Estonia": "EE",
+                "Ireland": "IE",
+                "Luxembourg": "LU",
+                "Malta": "MT",
+                "Cyprus": "CY",
+                "Serbia": "RS",
+                "Bosnia and Herzegovina": "BA",
+                "Montenegro": "ME",
+                "North Macedonia": "MK",
+                "Albania": "AL",
+                "Moldova": "MD",
+                "Ukraine": "UA",
+                "Belarus": "BY",
+                "Russia": "RU",
+                "Russian Federation": "RU",
+                "Turkey": "TR"
+            };
+            
+            return countryCodeMap[geoCountryName] || null;
+        }
+        
+        function createTooltipContent(countryName, stats) {
+            return `
+                <h3>${countryName}</h3>
+                <div class="tooltip-stat">
+                    <span class="tooltip-label">Main Stations:</span>
+                    <span class="tooltip-value" style="color: #ff6b35;">${stats.main.toLocaleString()}</span>
+                </div>
+                <div class="tooltip-stat">
+                    <span class="tooltip-label">Airport Stations:</span>
+                    <span class="tooltip-value" style="color: #f7931e;">${stats.airport.toLocaleString()}</span>
+                </div>
+                <div class="tooltip-stat">
+                    <span class="tooltip-label">City Stations:</span>
+                    <span class="tooltip-value" style="color: #4ecdc4;">${stats.city.toLocaleString()}</span>
+                </div>
+                <div class="tooltip-stat">
+                    <span class="tooltip-label">Regular Stations:</span>
+                    <span class="tooltip-value" style="color: #45b7d1;">${stats.regular.toLocaleString()}</span>
+                </div>
+                <div class="tooltip-total">
+                    <div class="tooltip-stat">
+                        <span class="tooltip-label">Total Stations:</span>
+                        <span class="tooltip-value" style="color: #4ecdc4;">${stats.total.toLocaleString()}</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function findFuzzyMatch(countryName) {
+            // Common name mappings between GeoJSON and CSV
+            const nameMap = {
+                "United Kingdom": "UK",
+                "Russian Federation": "Russia",
+                "Republic of Serbia": "Serbia",
+                "Bosnia and Herzegovina": "Bosnia and Herz.",
+                "North Macedonia": "Macedonia",
+                "Czech Republic": "Czechia"
+            };
+            
+            // Check direct mapping
+            if (nameMap[countryName] && countryStats.has(nameMap[countryName])) {
+                return nameMap[countryName];
             }
+            
+            // Check reverse mapping
+            const reverseMap = Object.fromEntries(Object.entries(nameMap).map(([k,v]) => [v,k]));
+            if (reverseMap[countryName] && countryStats.has(reverseMap[countryName])) {
+                return reverseMap[countryName];
+            }
+            
+            // Try partial matching
+            for (const csvCountry of countryStats.keys()) {
+                if (countryName.includes(csvCountry) || csvCountry.includes(countryName)) {
+                    return csvCountry;
+                }
+            }
+            
+            return null;
         }
         
-        function updateStationCount() {
-            const rendered = Math.min(trainStations.length, MAX_STATIONS_RENDER);
-            d3.select("#stationCount").text(trainStations.length.toLocaleString());
-            d3.select("#renderedCount").text(rendered.toLocaleString());
+        function updateOverallStats() {
+            const totalStations = trainStations.length;
+            const totalCountries = countryStats.size;
+            const totalMain = Array.from(countryStats.values()).reduce((sum, stats) => sum + stats.main, 0);
+            
+            d3.select("#totalStations").text(totalStations.toLocaleString());
+            d3.select("#totalCountries").text(totalCountries);
+            d3.select("#mainStations").text(totalMain.toLocaleString());
         }
         
         // Handle window resize
@@ -378,11 +572,8 @@
             svg.attr("width", newWidth).attr("height", newHeight);
             projection.translate([newWidth / 2, newHeight / 2]);
             
-            // Redraw
+            // Redraw paths
             g.selectAll("path").attr("d", path);
-            g.selectAll("circle")
-                .attr("cx", d => projection([d.longitude, d.latitude])[0])
-                .attr("cy", d => projection([d.longitude, d.latitude])[1]);
         });
     </script>
 </body>
