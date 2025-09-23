@@ -16,6 +16,7 @@ Countries are colored from light to dark blue based on their total number of tra
 - Train station data: [Source already provided in repository]
 - European country boundaries: GeoJSON format
 - Data source: https://www.kaggle.com/datasets/headsortails/train-stations-in-europe
+- Geojson: https://github.com/leakyMirror/map-of-europe/tree/master/GeoJSON
 
 ## Important Note
 This visualization was created for educational purposes and class practice. The data accuracy has not been verified and should not be used for official analysis or decision-making.
